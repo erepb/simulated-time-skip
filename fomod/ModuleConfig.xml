@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+    <moduleName>Simulated Time Skip</moduleName>
+    <requiredInstallFiles>
+        <folder source="core/gamedata" destination="gamedata" priority="0"/>
+    </requiredInstallFiles>
+    <installSteps order="Explicit">
+        <installStep name="Modules">
+            <optionalFileGroups order="Explicit">
+                <group name="Time Skip Hooks" type="SelectAny">
+                    <plugins order="Explicit">
+                        <plugin name="Sleep">
+                            <description>Replaces vanilla sleep with simulated time skip. When sleeping, ALife runs in incremental steps instead of a single time jump.</description>
+                            <typeDescriptor>
+                                <type name="Recommended"/>
+                            </typeDescriptor>
+                            <files>
+                                <folder source="optional/sleep/gamedata" destination="gamedata" priority="0"/>
+                            </files>
+                        </plugin>
+                        <plugin name="Travel (catch-all)">
+                            <description>Intercepts level.change_game_time globally. Catches fast travel, backpack travel, kairan travel, and any other mod that advances time by 3+ minutes. Runs synchronously (brief freeze, no overlay). Acts as a safety net for scenarios not covered by individual hooks above.</description>
+                            <typeDescriptor>
+                                <type name="Recommended"/>
+                            </typeDescriptor>
+                            <files>
+                                <folder source="optional/travel/gamedata" destination="gamedata" priority="0"/>
+                            </files>
+                        </plugin>
+                        <plugin name="Anabiotic (emission shelter)">
+                            <description>Replaces anabiotic drug time skip during emissions. Shows "Taking cover" overlay while ALife simulates 35-45 minutes.</description>
+                            <typeDescriptor>
+                                <type name="Optional"/>
+                            </typeDescriptor>
+                            <files>
+                                <folder source="optional/anabiotic/gamedata" destination="gamedata" priority="0"/>
+                            </files>
+                        </plugin>
+                        <plugin name="Campfire (Placeable Campfires)">
+                            <description>Replaces campfire placement and wood gathering time skips. Shows "Preparing campfire" / "Gathering wood" overlay. Requires Placeable Campfires mod.</description>
+                            <typeDescriptor>
+                                <type name="Optional"/>
+                            </typeDescriptor>
+                            <files>
+                                <folder source="optional/campfire/gamedata" destination="gamedata" priority="0"/>
+                            </files>
+                        </plugin>
+                        <plugin name="Books (G.A.M.M.A. Books Pass Time)">
+                            <description>Replaces book reading time skip. Shows "Reading" overlay for 1-3 hours of game time. Requires G.A.M.M.A. Books Pass Time mod.</description>
+                            <typeDescriptor>
+                                <type name="Optional"/>
+                            </typeDescriptor>
+                            <files>
+                                <folder source="optional/books/gamedata" destination="gamedata" priority="0"/>
+                            </files>
+                        </plugin>
+                        <plugin name="Soulslike respawn (Soulslike Gamemode - Jabbers)">
+                            <description>Replaces soulslike death/respawn time skip. Shows "Recovering" overlay for 6-14 hours of game time. Requires Soulslike Gamemode mod.</description>
+                            <typeDescriptor>
+                                <type name="Optional"/>
+                            </typeDescriptor>
+                            <files>
+                                <folder source="optional/soulslike/gamedata" destination="gamedata" priority="0"/>
+                            </files>
+                        </plugin>
+                        <plugin name="Flash anomaly (DAO)">
+                            <description>Replaces flash anomaly time warp. Shows "Disoriented" overlay for 2-5 hours of game time. Requires DAO mod (drx_da_main).</description>
+                            <typeDescriptor>
+                                <type name="Optional"/>
+                            </typeDescriptor>
+                            <files>
+                                <folder source="optional/flash/gamedata" destination="gamedata" priority="0"/>
+                            </files>
+                        </plugin>
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
+    </installSteps>
+</config>

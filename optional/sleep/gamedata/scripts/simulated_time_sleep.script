@@ -1,0 +1,20 @@
+-- simulated_time_sleep.script
+-- Replaces vanilla sleep with simulated time skip
+-- Requires: simulated_time.script (core module)
+
+function on_game_start()
+	ui_sleep_dialog.dream_callback = function()
+		local GUI = ui_sleep_dialog.GUI
+		local hours = GUI.forced or GUI.time_track:GetIValue()
+
+		simulated_time.advance(hours * 60, {
+			label = game.translate_string("st_sim_sleeping"),
+			on_complete = function()
+				db.actor.power = 1
+				SendScriptCallback("actor_on_sleep", hours)
+				ui_sleep_dialog.dream_callback2()
+			end,
+		})
+	end
+	printf("[SIM] hooked sleep dialog")
+end

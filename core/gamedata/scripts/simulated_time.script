@@ -1,0 +1,295 @@
+-- simulated_time.script
+-- Incremental time skip with full ALife simulation each step
+--
+-- Public API:
+--   simulated_time.advance(total_minutes, opts)
+--   simulated_time.advance_sync(total_minutes)
+--   simulated_time.is_active()
+--
+-- Usage from other mods:
+--   simulated_time.advance(120)  -- 2 hours, no callback
+--   simulated_time.advance(60, function() printf("done!") end)
+--   simulated_time.advance(180, { on_complete = fn, step = 5, label = "Traveling..." })
+--
+-- Options table:
+--   on_complete  function()       called when simulation finishes
+--   on_step      function(e, t)   called each step with (elapsed_min, total_min)
+--   step         number           minutes per step (default 3)
+--   label        string           activity name shown on overlay (e.g. "Sleeping", "Traveling")
+--   silent       bool             skip overlay entirely
+
+local DEFAULT_STEP = 3
+local PPE_ID = 31337
+
+local _cgt = level.change_game_time
+
+local state = nil
+local sync_active = false
+local overlay = nil
+local h_s, m_s, time_left_str
+
+----------------------------------------------------------------
+-- Overlay
+----------------------------------------------------------------
+class "SimOverlay" (CUIScriptWnd)
+
+function SimOverlay:__init(label) super()
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self.fmt = label
+
+	self.text = CUITextWnd()
+	self.text:SetWndRect(Frect():set(0, 370, 1024, 30))
+	self.text:SetFont(GetFontGraffiti22Russian())
+	self.text:SetTextColor(GetARGB(255, 200, 200, 200))
+	self.text:SetTextAlignment(CGameFont.alCenter)
+	self.text:SetText(self:format_text(0, 1))
+	self:AttachChild(self.text)
+end
+
+function SimOverlay:format_text(elapsed_min, total_min)
+	local left = total_min - elapsed_min
+	local h = math.floor(left / 60)
+	local m = left % 60
+	local time_str = h > 0
+		and string.format("%s %s %s %s", h, h_s, m, m_s)
+		or  string.format("%s %s", m, m_s)
+	return self.fmt .. ". " .. time_left_str .. ": " .. time_str
+end
+
+function SimOverlay:SetProgress(elapsed_min, total_min)
+	self.text:SetText(self:format_text(elapsed_min, total_min))
+end
+
+local function init_strings()
+	if not h_s then
+		h_s = game.translate_string("st_sim_h")
+		m_s = game.translate_string("st_sim_m")
+		time_left_str = game.translate_string("st_sim_time_left")
+	end
+end
+
+local function show_overlay(label, total_min)
+	init_strings()
+	level.add_pp_effector("black_infinite.ppe", PPE_ID, true)
+	level.disable_input()
+	overlay = SimOverlay(label or game.translate_string("st_sim_simulating"))
+	if total_min then
+		overlay:SetProgress(0, total_min)
+	end
+	get_hud():AddDialogToRender(overlay)
+end
+
+local function hide_overlay()
+	if overlay then
+		get_hud():RemoveDialogToRender(overlay)
+		overlay = nil
+	end
+	level.remove_pp_effector(PPE_ID)
+	level.enable_input()
+end
+
+function show_splash(label, total_min)
+	show_overlay(label, total_min)
+end
+
+function hide_splash()
+	hide_overlay()
+end
+
+----------------------------------------------------------------
+-- Core
+----------------------------------------------------------------
+local function save_alife_state(with_switch)
+	local saved = {
+		opu  = ini_sys:r_u32("alife", "objects_per_update"),
+		opt  = ini_sys:r_u32("alife", "process_time"),
+	}
+	if with_switch then
+		saved.dist = alife():switch_distance()
+	end
+	return saved
+end
+
+local function override_alife(with_switch)
+	if with_switch then
+		alife():set_switch_distance(0)
+	end
+	RemoveTimeEvent(0, "obj_per_upd")
+	alife():set_objects_per_update(65534)
+	alife():set_process_time(999999)
+end
+
+local function restore_alife(saved)
+	if saved.dist then
+		alife():set_switch_distance(saved.dist)
+	end
+	alife():set_objects_per_update(saved.opu)
+	alife():set_process_time(saved.opt)
+end
+
+local function do_step()
+	if not state then return true end
+
+	local now = time_global()
+
+	if state.step_start then
+		state.step_times[#state.step_times + 1] = now - state.step_start
+	end
+
+	if state.elapsed_min >= state.total_min then
+		finish(now)
+		return true
+	end
+
+	if overlay then
+		overlay:SetProgress(state.elapsed_min, state.total_min)
+	end
+	if state.on_step then
+		state.on_step(state.elapsed_min, state.total_min)
+	end
+
+	state.step_start = now
+
+	local step = math.min(state.step, state.total_min - state.elapsed_min)
+	_cgt(0, 0, step)
+	alife():force_update()
+	state.elapsed_min = state.elapsed_min + step
+
+	return false
+end
+
+function finish(now)
+	local total_ms = now - state.t0
+	local on_complete = state.on_complete
+
+	if not state.silent then
+		hide_overlay()
+	end
+
+	restore_alife(state.saved)
+	printf("[SIM]   restored alife: opu=%s opt=%s dist=%s", state.saved.opu, state.saved.opt, state.saved.dist or "n/a")
+	log_results(total_ms)
+
+	local gt = game.get_game_time()
+	printf("[SIM] async done: game time %s", gt:timeToString(game.CTime.TimeToMins))
+
+	local s = state
+	state = nil
+
+	if on_complete then
+		on_complete(s)
+	end
+end
+
+----------------------------------------------------------------
+-- Public API
+----------------------------------------------------------------
+
+--- Start a simulated time skip.
+-- @param total_minutes  number   how many game minutes to advance
+-- @param opts           function|table  callback or options table
+-- @return true if started, false if already active
+function advance(total_minutes, opts)
+	if state then
+		printf("[SIM] already active, ignoring advance(%s)", total_minutes)
+		return false
+	end
+
+	if type(opts) == "function" then
+		opts = { on_complete = opts }
+	end
+	opts = opts or {}
+
+	local gt = game.get_game_time()
+	printf("[SIM] async start: %s min (step %s) | game time %s | label: %s",
+		total_minutes, opts.step or DEFAULT_STEP, gt:timeToString(game.CTime.TimeToMins), opts.label or "nil")
+
+	local saved = save_alife_state(true)
+	printf("[SIM]   saved alife: opu=%s opt=%s dist=%s", saved.opu, saved.opt, saved.dist or "n/a")
+	override_alife(true)
+
+	state = {
+		total_min   = total_minutes,
+		elapsed_min = 0,
+		step        = opts.step or DEFAULT_STEP,
+		saved       = saved,
+		on_complete = opts.on_complete,
+		on_step     = opts.on_step,
+		silent      = opts.silent,
+		step_times  = {},
+		step_start  = nil,
+		t0          = time_global(),
+	}
+
+	if not opts.silent then
+		show_overlay(opts.label)
+	end
+
+	AddUniqueCall(do_step)
+	return true
+end
+
+function is_active()
+	return state ~= nil or sync_active
+end
+
+--- Run a simulated time skip synchronously (all steps in one frame, no overlay).
+-- Used by the travel interceptor for cases where async is not possible.
+-- @param total_minutes  number   how many game minutes to advance
+-- @param step_size      number   minutes per step (default 3)
+-- @return true if completed, false if already active
+function advance_sync(total_minutes, step_size)
+	if state or sync_active then
+		printf("[SIM] already active, ignoring advance_sync(%s)", total_minutes)
+		return false
+	end
+	step_size = step_size or DEFAULT_STEP
+	sync_active = true
+
+	local gt = game.get_game_time()
+	printf("[SIM] sync start: %s min (step %s) | game time %s", total_minutes, step_size, gt:timeToString(game.CTime.TimeToMins))
+
+	local saved = save_alife_state()
+	printf("[SIM]   saved alife: opu=%s opt=%s", saved.opu, saved.opt)
+	override_alife()
+
+	local t0 = time_global()
+	local elapsed = 0
+	local steps = 0
+	while elapsed < total_minutes do
+		local s = math.min(step_size, total_minutes - elapsed)
+		_cgt(0, 0, s)
+		alife():force_update()
+		SendScriptCallback("actor_on_update", db.actor_binder, 200)
+		elapsed = elapsed + s
+		steps = steps + 1
+	end
+
+	restore_alife(saved)
+	printf("[SIM]   restored alife: opu=%s opt=%s", saved.opu, saved.opt)
+	sync_active = false
+
+	local total_ms = time_global() - t0
+	local gt2 = game.get_game_time()
+	printf("[SIM] sync done: %s ms | %s steps | game time %s", total_ms, steps, gt2:timeToString(game.CTime.TimeToMins))
+	return true
+end
+
+----------------------------------------------------------------
+-- Diagnostics
+----------------------------------------------------------------
+function log_results(total_ms)
+	if not state then return end
+	local s = state
+	local n = #s.step_times
+	local sum, mn, mx = 0, 999999, 0
+	for _, t in ipairs(s.step_times) do
+		sum = sum + t
+		if t < mn then mn = t end
+		if t > mx then mx = t end
+	end
+	if n == 0 then mn = 0 end
+	local avg = n > 0 and (sum / n) or 0
+
+	printf("[SIM]   perf: %s ms total | %s steps | avg %.1f | min %s | max %s ms/step", total_ms, n, avg, mn, mx)
+end

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fomod>
+    <Name>Simulated Time Skip</Name>
+    <Author>Erepb</Author>
+    <Version MachineVersion="1.0.0">1.0.0</Version>
+    <Description>Replaces vanilla single-jump time skip with incremental steps that run full ALife simulation each tick. Squads move, offline combat triggers, and territory changes during sleep and other time skips. Requires custom engine build with force_update() exposed to Lua.</Description>
+    <Groups>
+        <element>Gameplay</element>
+    </Groups>
+</fomod>

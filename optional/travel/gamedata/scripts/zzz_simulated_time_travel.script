@@ -1,0 +1,80 @@
+-- zzz_simulated_time_travel.script
+-- Catch-all: intercepts level.change_game_time for any unhooked time skip
+-- Cross-level: async simulation with overlay and countdown
+-- Same-level: deferred sync simulation
+-- Covers: fast travel, backpack travel, kairan travel, and any other mod
+-- Requires: simulated_time.script (core module)
+
+local MIN_MINUTES = 3
+local orig_cgt = level.change_game_time
+local orig_cl = _G.ChangeLevel
+
+local pending = nil -- { minutes, cl_args }
+
+local function suppress_npe()
+	if npe_director and npe_director.Register_dialog then
+		npe_director.Register_dialog("simulated_time")
+	end
+end
+
+local function restore_npe()
+	if npe_director and npe_director.Unregister_dialog then
+		npe_director.Unregister_dialog()
+	end
+end
+
+-- Async fallback for same-level travel (no ChangeLevel follows)
+local function flush_async()
+	if not pending then return true end
+	local p = pending
+	pending = nil
+	printf("[SIM] async no-ChangeLevel: %s min with overlay", p.minutes)
+	simulated_time.advance(p.minutes, {
+		label = game.translate_string("st_sim_traveling"),
+		on_complete = function()
+			restore_npe()
+		end,
+	})
+	return true
+end
+
+level.change_game_time = function(d, h, m)
+	local total = d * 1440 + h * 60 + m
+	if simulated_time.is_active() then
+		printf("[SIM] passthrough change_game_time(%s, %s, %s) = %s min (active)", d, h, m, total)
+		return orig_cgt(d, h, m)
+	end
+	if total < MIN_MINUTES then
+		printf("[SIM] passthrough change_game_time(%s, %s, %s) = %s min (below threshold)", d, h, m, total)
+		return orig_cgt(d, h, m)
+	end
+	printf("[SIM] captured change_game_time(%s, %s, %s) = %s min", d, h, m, total)
+	suppress_npe()
+	pending = { minutes = total }
+	AddUniqueCall(flush_async)
+end
+
+_G.ChangeLevel = function(pos, vid, gid, dir, anim)
+	if not pending then
+		printf("[SIM] passthrough ChangeLevel (no pending time)")
+		return orig_cl(pos, vid, gid, dir, anim)
+	end
+
+	local minutes = pending.minutes
+	pending = nil
+	RemoveUniqueCall(flush_async)
+
+	printf("[SIM] async travel: %s min with overlay", minutes)
+	simulated_time.advance(minutes, {
+		label = game.translate_string("st_sim_traveling"),
+		on_complete = function()
+			-- Don't restore NPE here: ChangeLevel reloads all scripts,
+			-- resetting Dialog_in_use. Restoring now would let queued
+			-- tutorials fire during the camera fade.
+			printf("[SIM] travel done, executing ChangeLevel")
+			orig_cl(pos, vid, gid, dir, anim)
+		end,
+	})
+end
+
+printf("[SIM] hooked level.change_game_time (threshold: %s min) + ChangeLevel", MIN_MINUTES)

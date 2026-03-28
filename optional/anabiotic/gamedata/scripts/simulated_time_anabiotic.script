@@ -1,0 +1,28 @@
+-- simulated_time_anabiotic.script
+-- Replaces anabiotic (emission shelter) time skip with simulated time
+-- Requires: simulated_time.script (core module)
+
+function on_game_start()
+	if not bind_stalker_ext or not bind_stalker_ext.anabiotic_callback then return end
+
+	local orig = bind_stalker_ext.anabiotic_callback
+	bind_stalker_ext.anabiotic_callback = function()
+		local captured = nil
+		local real_cgt = level.change_game_time
+		level.change_game_time = function(d, h, m)
+			captured = d * 1440 + h * 60 + m
+		end
+		orig()
+		level.change_game_time = real_cgt
+
+		if captured and captured > 0 then
+			simulated_time.advance(captured, {
+				label = game.translate_string("st_sim_unconscious"),
+				on_complete = function()
+					level_weathers.get_weather_manager():forced_weather_change()
+				end,
+			})
+		end
+	end
+	printf("[SIM] hooked anabiotic callback")
+end

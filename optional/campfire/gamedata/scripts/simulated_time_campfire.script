@@ -1,0 +1,43 @@
+-- simulated_time_campfire.script
+-- Replaces campfire time skips with simulated time
+-- Requires: simulated_time.script (core module), Placeable Campfires mod
+
+function on_game_start()
+	if not campfire_placeable then return end
+
+	if campfire_placeable.prepare_campfire then
+		campfire_placeable.prepare_campfire = function()
+			local game_minutes = math.random(5, 10)
+			simulated_time.advance(game_minutes, {
+				label = game.translate_string("st_sim_preparing_campfire"),
+				on_complete = function()
+					CreateTimeEvent("placing_cf", "placing_cf", 2, campfire_placeable.place_campfire)
+				end,
+			})
+		end
+		printf("[SIM] hooked campfire prepare")
+	end
+
+	if campfire_placeable.gather_wood then
+		local orig_gather = campfire_placeable.gather_wood
+		campfire_placeable.gather_wood = function(obj)
+			local captured = nil
+			local real_cgt = level.change_game_time
+			local real_ppe = level.add_pp_effector
+			level.change_game_time = function(d, h, m)
+				captured = d * 1440 + h * 60 + m
+			end
+			level.add_pp_effector = function() end
+			orig_gather(obj)
+			level.change_game_time = real_cgt
+			level.add_pp_effector = real_ppe
+
+			if captured and captured > 0 then
+				simulated_time.advance(captured, {
+					label = game.translate_string("st_sim_gathering_wood"),
+				})
+			end
+		end
+		printf("[SIM] hooked campfire gather_wood")
+	end
+end
