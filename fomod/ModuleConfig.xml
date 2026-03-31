@@ -8,6 +8,37 @@
     <installSteps order="Explicit">
         <installStep name="Modules">
             <optionalFileGroups order="Explicit">
+                <group name="Simulation Step Size" type="SelectExactlyOne">
+                    <plugins order="Explicit">
+                        <plugin name="1 minute (highest fidelity, slowest)">
+                            <description>ALife runs every 1 game minute. Most accurate simulation, but the time skip takes longer in real time.</description>
+                            <files>
+                                <folder source="optional/step_1min/gamedata" destination="gamedata" priority="1"/>
+                            </files>
+                        </plugin>
+                        <plugin name="3 minutes (recommended)">
+                            <description>ALife runs every 3 game minutes. Good balance between simulation accuracy and speed.</description>
+                            <typeDescriptor>
+                                <type name="Recommended"/>
+                            </typeDescriptor>
+                            <files>
+                                <folder source="optional/step_3min/gamedata" destination="gamedata" priority="1"/>
+                            </files>
+                        </plugin>
+                        <plugin name="5 minutes (faster)">
+                            <description>ALife runs every 5 game minutes. Faster time skips, somewhat coarser simulation.</description>
+                            <files>
+                                <folder source="optional/step_5min/gamedata" destination="gamedata" priority="1"/>
+                            </files>
+                        </plugin>
+                        <plugin name="10 minutes (fastest)">
+                            <description>ALife runs every 10 game minutes. Fastest time skips, least granular simulation.</description>
+                            <files>
+                                <folder source="optional/step_10min/gamedata" destination="gamedata" priority="1"/>
+                            </files>
+                        </plugin>
+                    </plugins>
+                </group>
                 <group name="Time Skip Hooks" type="SelectAny">
                     <plugins order="Explicit">
                         <plugin name="Sleep">

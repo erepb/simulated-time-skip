@@ -5,6 +5,9 @@
 --   simulated_time.advance(total_minutes, opts)
 --   simulated_time.advance_sync(total_minutes)
 --   simulated_time.is_active()
+--   simulated_time.capture_time(fn, suppress_ppe, ...)
+--
+-- Config: misc/simulated_time.ltx  [settings] step_minutes = N
 --
 -- Usage from other mods:
 --   simulated_time.advance(120)  -- 2 hours, no callback
@@ -19,6 +22,13 @@
 --   silent       bool             skip overlay entirely
 
 local DEFAULT_STEP = 3
+do
+	local cfg = ini_file("misc\\simulated_time.ltx")
+	if cfg and cfg:section_exist("settings") and cfg:line_exist("settings", "step_minutes") then
+		DEFAULT_STEP = cfg:r_u32("settings", "step_minutes")
+	end
+end
+
 local PPE_ID = 31337
 
 local _cgt = level.change_game_time
