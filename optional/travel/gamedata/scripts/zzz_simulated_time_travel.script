@@ -31,7 +31,9 @@ local function flush_async()
 	printf("[SIM] async no-ChangeLevel: %s min with overlay", p.minutes)
 	simulated_time.advance(p.minutes, {
 		label = game.translate_string("st_sim_traveling"),
+		silent = true, -- splash already shown in change_game_time hook
 		on_complete = function()
+			simulated_time.hide_splash()
 			restore_npe()
 		end,
 	})
@@ -50,6 +52,8 @@ level.change_game_time = function(d, h, m)
 	end
 	printf("[SIM] captured change_game_time(%s, %s, %s) = %s min", d, h, m, total)
 	suppress_npe()
+	-- Black screen immediately to prevent visible flash of new location
+	simulated_time.show_splash(game.translate_string("st_sim_traveling"), total)
 	pending = { minutes = total }
 	AddUniqueCall(flush_async)
 end
@@ -67,10 +71,10 @@ _G.ChangeLevel = function(pos, vid, gid, dir, anim)
 	printf("[SIM] async travel: %s min with overlay", minutes)
 	simulated_time.advance(minutes, {
 		label = game.translate_string("st_sim_traveling"),
+		silent = true, -- splash already shown in change_game_time hook
 		on_complete = function()
-			-- Don't restore NPE here: ChangeLevel reloads all scripts,
-			-- resetting Dialog_in_use. Restoring now would let queued
-			-- tutorials fire during the camera fade.
+			-- Don't restore NPE or hide splash here: ChangeLevel reloads
+			-- all scripts, resetting Dialog_in_use and destroying the overlay.
 			printf("[SIM] travel done, executing ChangeLevel")
 			orig_cl(pos, vid, gid, dir, anim)
 		end,
