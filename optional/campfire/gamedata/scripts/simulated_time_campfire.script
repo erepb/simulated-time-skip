@@ -21,17 +21,7 @@ function on_game_start()
 	if campfire_placeable.gather_wood then
 		local orig_gather = campfire_placeable.gather_wood
 		campfire_placeable.gather_wood = function(obj)
-			local captured = nil
-			local real_cgt = level.change_game_time
-			local real_ppe = level.add_pp_effector
-			level.change_game_time = function(d, h, m)
-				captured = d * 1440 + h * 60 + m
-			end
-			level.add_pp_effector = function() end
-			orig_gather(obj)
-			level.change_game_time = real_cgt
-			level.add_pp_effector = real_ppe
-
+			local captured = simulated_time.capture_time(orig_gather, true, obj)
 			if captured and captured > 0 then
 				simulated_time.advance(captured, {
 					label = game.translate_string("st_sim_gathering_wood"),

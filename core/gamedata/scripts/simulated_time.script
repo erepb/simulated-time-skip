@@ -97,6 +97,36 @@ function hide_splash()
 end
 
 ----------------------------------------------------------------
+-- Capture helper
+----------------------------------------------------------------
+
+--- Capture a time skip from a function that calls level.change_game_time.
+-- Temporarily replaces change_game_time (and optionally add_pp_effector)
+-- to intercept the time value without actually advancing game time.
+-- @param fn            function to call
+-- @param suppress_ppe  bool  also suppress add_pp_effector calls
+-- @param ...           arguments passed through to fn
+-- @return number|nil   captured minutes, or nil if fn didn't call change_game_time
+function capture_time(fn, suppress_ppe, ...)
+	local captured = nil
+	local real_cgt = level.change_game_time
+	local real_ppe
+	level.change_game_time = function(d, h, m)
+		captured = d * 1440 + h * 60 + m
+	end
+	if suppress_ppe then
+		real_ppe = level.add_pp_effector
+		level.add_pp_effector = function() end
+	end
+	fn(...)
+	level.change_game_time = real_cgt
+	if real_ppe then
+		level.add_pp_effector = real_ppe
+	end
+	return captured
+end
+
+----------------------------------------------------------------
 -- Core
 ----------------------------------------------------------------
 local function save_alife_state(with_switch)
@@ -168,7 +198,7 @@ function finish(now)
 
 	restore_alife(state.saved)
 	printf("[SIM]   restored alife: opu=%s opt=%s dist=%s", state.saved.opu, state.saved.opt, state.saved.dist or "n/a")
-	log_results(total_ms)
+	log_results(total_ms, state)
 
 	local gt = game.get_game_time()
 	printf("[SIM] async done: game time %s", gt:timeToString(game.CTime.TimeToMins))
@@ -222,7 +252,7 @@ function advance(total_minutes, opts)
 	}
 
 	if not opts.silent then
-		show_overlay(opts.label)
+		show_overlay(opts.label, total_minutes)
 	end
 
 	AddUniqueCall(do_step)
@@ -278,9 +308,8 @@ end
 ----------------------------------------------------------------
 -- Diagnostics
 ----------------------------------------------------------------
-function log_results(total_ms)
-	if not state then return end
-	local s = state
+function log_results(total_ms, s)
+	if not s then return end
 	local n = #s.step_times
 	local sum, mn, mx = 0, 999999, 0
 	for _, t in ipairs(s.step_times) do

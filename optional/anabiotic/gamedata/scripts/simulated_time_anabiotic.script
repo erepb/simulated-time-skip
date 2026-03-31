@@ -7,14 +7,7 @@ function on_game_start()
 
 	local orig = bind_stalker_ext.anabiotic_callback
 	bind_stalker_ext.anabiotic_callback = function()
-		local captured = nil
-		local real_cgt = level.change_game_time
-		level.change_game_time = function(d, h, m)
-			captured = d * 1440 + h * 60 + m
-		end
-		orig()
-		level.change_game_time = real_cgt
-
+		local captured = simulated_time.capture_time(orig, false)
 		if captured and captured > 0 then
 			simulated_time.advance(captured, {
 				label = game.translate_string("st_sim_unconscious"),
