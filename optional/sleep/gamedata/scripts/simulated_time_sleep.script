@@ -2,6 +2,28 @@
 -- Replaces vanilla sleep with simulated time skip
 -- Requires: simulated_time.script (core module)
 
+-- During the stepped advance, actor_on_update in actor_status_sleep /
+-- actor_status_thirst fires once per ~5 game-minutes and adds +30 to
+-- last_sleep / last_drink. Vanilla only crosses the threshold once
+-- because time jumps in a single frame. We snapshot the values before
+-- the advance and write them back on completion so the hours-based
+-- reduction in actor_on_sleep applies to the clean pre-sleep state.
+-- last_sleep and last_drink are exposed via the unlocalizer config at
+-- gamedata/configs/unlocalizers/unlocalizer_simulated_time_sleep.ltx.
+local function snapshot()
+	return {
+		last_sleep = actor_status_sleep  and actor_status_sleep.last_sleep,
+		last_drink = actor_status_thirst and actor_status_thirst.last_drink,
+		satiety    = db.actor.satiety,
+	}
+end
+
+local function restore(snap)
+	if snap.last_sleep ~= nil then actor_status_sleep.last_sleep = snap.last_sleep end
+	if snap.last_drink ~= nil then actor_status_thirst.last_drink = snap.last_drink end
+	db.actor.satiety = snap.satiety
+end
+
 function on_game_start()
 	ui_sleep_dialog.dream_callback = function()
 		local GUI = ui_sleep_dialog.GUI
@@ -11,9 +33,12 @@ function on_game_start()
 			hours = ui_sleep_dialog.get_immersive_sleep_hours(hours)
 		end
 
+		local snap = snapshot()
+
 		simulated_time.advance(hours * 60, {
 			label = game.translate_string("st_sim_sleeping"),
 			on_complete = function()
+				restore(snap)
 				db.actor.power = 1
 				SendScriptCallback("actor_on_sleep", hours)
 				ui_sleep_dialog.dream_callback2()
