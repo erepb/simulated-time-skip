@@ -7,6 +7,10 @@ function on_game_start()
 		local GUI = ui_sleep_dialog.GUI
 		local hours = GUI.forced or GUI.time_track:GetIValue()
 
+		if ui_sleep_dialog.get_immersive_sleep_hours then
+			hours = ui_sleep_dialog.get_immersive_sleep_hours(hours)
+		end
+
 		simulated_time.advance(hours * 60, {
 			label = game.translate_string("st_sim_sleeping"),
 			on_complete = function()
