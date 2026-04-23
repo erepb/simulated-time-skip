@@ -2,7 +2,7 @@
 <fomod>
     <Name>Simulated Time Skip</Name>
     <Author>Erepb</Author>
-    <Version MachineVersion="1.1.0">1.1.0</Version>
+    <Version MachineVersion="1.1.1">1.1.1</Version>
     <Description>Replaces vanilla single-jump time skip with incremental steps that run full ALife simulation each tick. Squads move, offline combat triggers, and territory changes during sleep and other time skips. Requires custom engine build with force_update() exposed to Lua.</Description>
     <Website>https://www.moddb.com/mods/stalker-anomaly/addons/simulated-time-skip</Website>
     <Groups>
