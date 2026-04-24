@@ -10,18 +10,19 @@
 -- reduction in actor_on_sleep applies to the clean pre-sleep state.
 -- last_sleep and last_drink are exposed via the unlocalizer config at
 -- gamedata/configs/unlocalizers/unlocalizer_simulated_time_sleep.ltx.
+-- Satiety is NOT snapshotted: it's drained by the engine based on
+-- game-time delta, so the stepped advance drains it the same total
+-- amount as vanilla's single jump — no correction needed.
 local function snapshot()
 	return {
 		last_sleep = actor_status_sleep  and actor_status_sleep.last_sleep,
 		last_drink = actor_status_thirst and actor_status_thirst.last_drink,
-		satiety    = db.actor.satiety,
 	}
 end
 
 local function restore(snap)
 	if snap.last_sleep ~= nil then actor_status_sleep.last_sleep = snap.last_sleep end
 	if snap.last_drink ~= nil then actor_status_thirst.last_drink = snap.last_drink end
-	db.actor.satiety = snap.satiety
 end
 
 function on_game_start()
